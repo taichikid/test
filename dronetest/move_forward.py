@@ -259,10 +259,13 @@ try:
     print('HOV')
     dict_params["throttle"] = hov
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+    print_msg_DISTANCE_SENSOR(master)
 
+    print('FORWARD')
     dict_params["pitch"] = forward
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
     time.sleep(ftime)
+    print_msg_DISTANCE_SENSOR(master)
 
     dict_params["pitch"] = 3000 - forward
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)

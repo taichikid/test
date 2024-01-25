@@ -4,6 +4,7 @@ from pymavlink import mavutil
 import ctypes
 import threading
 import serial
+import sys
 
 class CustomThread(threading.Thread):
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
@@ -153,11 +154,6 @@ def command(c, th_send_msg_rc=None):
         flag_send_msg_rc = True
     if c == "land":
         land(master)
-        # throttle = 1600
-        # roll = 1500 # お試し
-        # pitch = 1500
-        # yaw = 1500
-        #flag_send_msg_rc = True
     if c == "stab":
         mode_stab(master)
     if c == "idle":
@@ -223,13 +219,23 @@ def commands(master, th_send_msg_rc, dict_params):
     th_send_msg_rc.start()
     return th_send_msg_rc
 
+import configparser
+config = configparser.ConfigParser()
+config.read('params.ini')
+takeoff = int(config['INPUT']['takeoff'])
+ttime = int(config['INPUT']['takeofftime'])
+hov = int(config['INPUT']['hov'])
+htime = int(config['INPUT']['hovtime'])
+forward = int(config['INPUT']['forward'])
+ftime = int(config['INPUT']['forwardtime'])
+
 try:
     # SITLへの接続
-    master = mavutil.mavlink_connection('tcp:127.0.0.1:5762')
+    try:
+        master = mavutil.mavlink_connection('/dev/ttyACM0') 
+    except serial.serialutil.SerialException:
+        master = mavutil.mavlink_connection('tcp:127.0.0.1:5762')
     master.wait_heartbeat()
-
-    # th_check_gpi = CustomThread(name="check_gpi", target=check_gpi, args=(master,))
-    # th_check_gpi.start()
 
     flag_send_msg_rc = False
     th_send_msg_rc = None
@@ -240,124 +246,62 @@ try:
     time.sleep(1)
 
     #上昇takeoff
-    dict_params["throttle"] = 2000
+    print('TAKEOFF')
+    dict_params["throttle"] = takeoff
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
 
-    while print_msg_DISTANCE_SENSOR(master) < 50:
+    while print_msg_DISTANCE_SENSOR(master) < 2:
         time.sleep(0.1)
         pass
 
-    dict_params["throttle"] = 1620
+    print('HOV')
+    print_msg_DISTANCE_SENSOR(master)
+    dict_params["throttle"] = hov
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
 
-    count = 0
-    target_degrees = 0
-    for i in range(20):
-        current_degrees = check_direction_pi(master)
+    target_degrees = 1.15 #1.2
+    takeoff = 1640
+    hov = 1630
+    ###　ここから
+    for i in range(200):
+        current_degrees = print_msg_DISTANCE_SENSOR(master)
         diff = abs(current_degrees - target_degrees)
-        if diff > 30:
-            power = 200
-        if diff > 20:
-            power = 125
-        elif diff > 7:
-            power = 35
+
+        if diff > 1.5:
+            power = (takeoff - hov) * 2
         else:
-            power = 22
+            power = (takeoff - hov) * diff*0.4
         
-        if current_degrees > target_degrees:
+        if current_degrees >= target_degrees:
             power *= -1
-        
-        dict_params["yaw"] = 1500 + power
+        dict_params["throttle"] = int(hov + power)
         th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-        time.sleep(0.5)
-    dict_params["yaw"] = 1500
-    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+        time.sleep(0.1)
+    ### ここまで
 
-    dict_params["pitch"] = 1000
-    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    time.sleep(10)
+    time.sleep(htime)
+    print_msg_DISTANCE_SENSOR(master)
+    print('LAND')
+    th_send_msg_rc = command("land", th_send_msg_rc)
 
-    dict_params["pitch"] = 1500
-    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    
-    dict_params["throttle"] = 0
-    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-
-    while print_msg_DISTANCE_SENSOR(master) > 20:
+    while print_msg_DISTANCE_SENSOR(master) > 0.1:
         time.sleep(0.1)
         pass
-
-    # dict_params["throttle"] = 2000
-    # th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    # time.sleep(0.5)
-
-    # th_send_msg_rc = command("land", th_send_msg_rc)
+    
+    th_send_msg_rc = command("stab", th_send_msg_rc)
 
     th_send_msg_rc.raise_exception()
     th_send_msg_rc.join()
 
     exit(1)
-    
-    while print_msg_DISTANCE_SENSOR(master) > 20:
-        th_send_msg_rc = command("idle", th_send_msg_rc)
-    th_send_msg_rc = command("up", th_send_msg_rc)
-    time.sleep(0.5)
-    th_send_msg_rc = command("land", th_send_msg_rc)
-    
-
-    # count = 0
-    # target_degrees = 45
-    # for i in range(50):
-    #     current_degrees = check_direction_pi(master)
-    #     if current_degrees > target_degrees:
-    #         dict_params["yaw"] = 1450
-    #     else:
-    #         dict_params["yaw"] = 1550
-    #     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    #     time.sleep(0.5)
-
-    # dict_params["yaw"] = 1500
-    # th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    # check_direction_pi(master)
-    
 
     print("test done")
-
-    # th_send_msg_rc = command("up", th_send_msg_rc)
-    # while True:
-    #     if print_msg_DISTANCE_SENSOR(master) > 100:
-    #         while print_msg_DISTANCE_SENSOR(master) > 20:
-    #             th_send_msg_rc = command("idle", th_send_msg_rc)
-    #         th_send_msg_rc = command("up", th_send_msg_rc)
-    #         time.sleep(0.5)
-    #         th_send_msg_rc = command("land", th_send_msg_rc)
-    #         break
-    #     time.sleep(0.2)
-
-    # # #前進forward
-    # # command("forward")
-
-    # # #着陸land
-    # # command("land")
-
-    # #常時情報出力
-    # # if th_send_msg_rc is not None:
-    # #     th_send_msg_rc.raise_exception()
-    # #     th_send_msg_rc.join()
-    # # th_check_gpi.raise_exception()
-    # # th_check_gpi.join()
-    # while True:
-    #     if print_msg_DISTANCE_SENSOR(master) < 1:
-    #         # 接続を閉じる
-    #         master.close()
-
-    # th_send_msg_rc = command("stab", th_send_msg_rc)
 
     if th_send_msg_rc is not None:
         th_send_msg_rc.raise_exception()
         th_send_msg_rc.join()
-    # th_check_gpi.raise_exception()
-    # th_check_gpi.join()
+    th_send_msg_rc.raise_exception()
+    th_send_msg_rc.join()
 except KeyboardInterrupt:
     try:
         th_send_msg_rc.raise_exception()

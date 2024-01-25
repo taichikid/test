@@ -3,6 +3,7 @@ import math
 from pymavlink import mavutil
 import ctypes
 import threading
+import sys
 
 class CustomThread(threading.Thread):
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
@@ -122,7 +123,17 @@ def mode_stab(master):
     msg = master.mav.command_long_encode(
         master.target_system, master.target_component,
         mavutil.mavlink.MAV_CMD_DO_SET_MODE, 
-        0, 1, 0, 0, 0, 0, 0, 0
+        0, 1, 0, 0, 0, 0, 0, 0 #stab0 althold2
+    )
+    master.mav.send(msg)
+    msg = master.recv_match(type="COMMAND_ACK", blocking=True)
+    print(msg)
+
+def mode_althold(master):
+    msg = master.mav.command_long_encode(
+        master.target_system, master.target_component,
+        mavutil.mavlink.MAV_CMD_DO_SET_MODE, 
+        0, 1, 2, 0, 0, 0, 0, 0 #stab0 althold2
     )
     master.mav.send(msg)
     msg = master.recv_match(type="COMMAND_ACK", blocking=True)
@@ -135,6 +146,7 @@ master.wait_heartbeat()
 th_check_gpi = CustomThread(name="check_gpi", target=check_gpi, args=(master,))
 th_check_gpi.start()
 
+args = sys.argv
 flag_send_msg_rc = False
 th_send_msg_rc = None
 roll = 0
@@ -170,16 +182,18 @@ while True:
             yaw = 1500
             flag_send_msg_rc = True
         if c == "land":
-            # land(master)
-            throttle = 1600
-            roll = 1500 # お試し
-            pitch = 1500
-            yaw = 1500
-            flag_send_msg_rc = True
+            land(master)
+            # throttle = 1600
+            # roll = 1500 # お試し
+            # pitch = 1500
+            # yaw = 1500
+            # flag_send_msg_rc = True
 
         if c == "stab":
             # stab(master)
             mode_stab(master)
+        if c == "alth":
+            mode_althold(master)
         if c == "idle":
             roll = 1500
             pitch = 1500

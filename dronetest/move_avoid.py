@@ -4,6 +4,7 @@ from pymavlink import mavutil
 import ctypes
 import threading
 import serial
+import sys
 
 class CustomThread(threading.Thread):
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
@@ -223,13 +224,28 @@ def commands(master, th_send_msg_rc, dict_params):
     th_send_msg_rc.start()
     return th_send_msg_rc
 
+import configparser
+config = configparser.ConfigParser()
+config.read('params.ini')
+takeoff = int(config['INPUT']['takeoff'])
+ttime = int(config['INPUT']['takeofftime'])
+hov = int(config['INPUT']['hov'])
+htime = int(config['INPUT']['hovtime'])
+forward = int(config['INPUT']['forward'])
+ftime = int(config['INPUT']['forwardtime'])
+rollr = int(config['INPUT']['rollr'])
+rolll = int(config['INPUT']['rolll'])
+
+import sys
+args = sys.argv
+
 try:
     # SITLへの接続
-    master = mavutil.mavlink_connection('tcp:127.0.0.1:5762')
+    try:
+        master = mavutil.mavlink_connection('/dev/ttyACM0') 
+    except serial.serialutil.SerialException:
+        master = mavutil.mavlink_connection('tcp:127.0.0.1:5762')
     master.wait_heartbeat()
-
-    # th_check_gpi = CustomThread(name="check_gpi", target=check_gpi, args=(master,))
-    # th_check_gpi.start()
 
     flag_send_msg_rc = False
     th_send_msg_rc = None
@@ -240,124 +256,77 @@ try:
     time.sleep(1)
 
     #上昇takeoff
-    dict_params["throttle"] = 2000
+    dict_params["throttle"] = takeoff
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
 
-    while print_msg_DISTANCE_SENSOR(master) < 50:
-        time.sleep(0.1)
-        pass
-
-    dict_params["throttle"] = 1620
+    time.sleep(ttime)
+    
+    print('HOV')
+    dict_params["throttle"] = hov
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+    print_msg_DISTANCE_SENSOR(master)
 
-    count = 0
-    target_degrees = 0
-    for i in range(20):
-        current_degrees = check_direction_pi(master)
-        diff = abs(current_degrees - target_degrees)
-        if diff > 30:
-            power = 200
-        if diff > 20:
-            power = 125
-        elif diff > 7:
-            power = 35
-        else:
-            power = 22
-        
-        if current_degrees > target_degrees:
-            power *= -1
-        
-        dict_params["yaw"] = 1500 + power
+    print('FORWARD')
+    dict_params["pitch"] = forward
+    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+    time.sleep(ftime)
+    print_msg_DISTANCE_SENSOR(master)
+
+    senser = 0
+
+    if args[1] == "r":
+        dict_params["roll"] = rollr
         th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-        time.sleep(0.5)
-    dict_params["yaw"] = 1500
-    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
 
-    dict_params["pitch"] = 1000
+        time.sleep(2)
+        senser = 1
+        if senser == 1:
+            dict_params["roll"] = 3000 - rollr
+            th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+            time.sleep(0.5)
+            dict_params["roll"] = 1500
+            th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+    if args[1] == "l":
+        dict_params["roll"] = rolll
+        th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+
+        time.sleep(2)
+        senser = 1
+        if senser == 1:
+            dict_params["roll"] = 3000 - rolll
+            th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+            time.sleep(0.5)
+            dict_params["roll"] = 1500
+            th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+
+    time.sleep(2)
+    dict_params["pitch"] = 3000 - forward
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    time.sleep(10)
+    time.sleep(0.5)
 
     dict_params["pitch"] = 1500
     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    
-    dict_params["throttle"] = 0
-    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
 
-    while print_msg_DISTANCE_SENSOR(master) > 20:
+    th_send_msg_rc = command("land", th_send_msg_rc)
+
+    while print_msg_DISTANCE_SENSOR(master) > 0.1:
         time.sleep(0.1)
         pass
-
-    # dict_params["throttle"] = 2000
-    # th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    # time.sleep(0.5)
-
-    # th_send_msg_rc = command("land", th_send_msg_rc)
+    
+    th_send_msg_rc = command("stab", th_send_msg_rc)
 
     th_send_msg_rc.raise_exception()
     th_send_msg_rc.join()
 
     exit(1)
-    
-    while print_msg_DISTANCE_SENSOR(master) > 20:
-        th_send_msg_rc = command("idle", th_send_msg_rc)
-    th_send_msg_rc = command("up", th_send_msg_rc)
-    time.sleep(0.5)
-    th_send_msg_rc = command("land", th_send_msg_rc)
-    
-
-    # count = 0
-    # target_degrees = 45
-    # for i in range(50):
-    #     current_degrees = check_direction_pi(master)
-    #     if current_degrees > target_degrees:
-    #         dict_params["yaw"] = 1450
-    #     else:
-    #         dict_params["yaw"] = 1550
-    #     th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    #     time.sleep(0.5)
-
-    # dict_params["yaw"] = 1500
-    # th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
-    # check_direction_pi(master)
-    
 
     print("test done")
-
-    # th_send_msg_rc = command("up", th_send_msg_rc)
-    # while True:
-    #     if print_msg_DISTANCE_SENSOR(master) > 100:
-    #         while print_msg_DISTANCE_SENSOR(master) > 20:
-    #             th_send_msg_rc = command("idle", th_send_msg_rc)
-    #         th_send_msg_rc = command("up", th_send_msg_rc)
-    #         time.sleep(0.5)
-    #         th_send_msg_rc = command("land", th_send_msg_rc)
-    #         break
-    #     time.sleep(0.2)
-
-    # # #前進forward
-    # # command("forward")
-
-    # # #着陸land
-    # # command("land")
-
-    # #常時情報出力
-    # # if th_send_msg_rc is not None:
-    # #     th_send_msg_rc.raise_exception()
-    # #     th_send_msg_rc.join()
-    # # th_check_gpi.raise_exception()
-    # # th_check_gpi.join()
-    # while True:
-    #     if print_msg_DISTANCE_SENSOR(master) < 1:
-    #         # 接続を閉じる
-    #         master.close()
-
-    # th_send_msg_rc = command("stab", th_send_msg_rc)
 
     if th_send_msg_rc is not None:
         th_send_msg_rc.raise_exception()
         th_send_msg_rc.join()
-    # th_check_gpi.raise_exception()
-    # th_check_gpi.join()
+    th_send_msg_rc.raise_exception()
+    th_send_msg_rc.join()
 except KeyboardInterrupt:
     try:
         th_send_msg_rc.raise_exception()

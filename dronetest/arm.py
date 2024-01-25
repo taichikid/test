@@ -4,6 +4,7 @@ from pymavlink import mavutil
 import ctypes
 import threading
 import serial
+import server
 
 class CustomThread(threading.Thread):
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={}):
@@ -223,6 +224,9 @@ def commands(master, th_send_msg_rc, dict_params):
     th_send_msg_rc.start()
     return th_send_msg_rc
 
+import sys
+args = sys.argv
+
 try:
     # ドローンとの接続 tcp:127.0.0.1:5762 /dev/ttyACM0
     try:
@@ -234,6 +238,9 @@ try:
     flag_send_msg_rc = False
     th_send_msg_rc = None
     dict_params = {"roll": 1500, "pitch": 1500, "throttle": 0, "yaw": 1500}
+
+    if args[1] == 1:
+        recv_takeoff('raspberrypi.local', 5555)
 
     #起動arm
     th_send_msg_rc = command("a")
