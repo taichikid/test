@@ -247,8 +247,10 @@ try:
     time.sleep(1)
 
     #上昇takeoff
-    dict_params["throttle"] = 1500
-    th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+    #dict_params["throttle"] = 1500
+    #th_send_msg_rc = commands(master, th_send_msg_rc, dict_params)
+    print_msg_DISTANCE_SENSOR()
+    print_msg_AHRS2()
 
     time.sleep(1)
 
