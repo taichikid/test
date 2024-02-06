@@ -234,7 +234,7 @@ if __name__ == "__main__":
     master.set_mode(master.mode_mapping()["STABILIZE"])
 
     # roll、pitchを補正
-    base_roll = 1462 #1500
+    base_roll = 1460 #1500
     base_pitch = 1500 #1500
     ahrs_roll, ahrs_pitch = get_roll_pitch_AHRS2(master)
     # print(ahrs_roll, ahrs_pitch)
